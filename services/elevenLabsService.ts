@@ -94,16 +94,13 @@ export const textToSpeechElevenLabs = async (
     
     // Kiểm tra loại lỗi
     const isAllTTSFailed = errorJson?.code === 'ALL_TTS_FAILED';
-    const isOpenAITTSFailed = errorJson?.code === 'OPENAI_TTS_FAILED';
     
     // Tạo error object với thông tin chi tiết
     const error = new Error(`ElevenLabs API error: Status code: ${response.status}\nBody: ${errorText}`) as any;
     error.status = response.status;
     error.details = errorDetail;
-    error.code = isOpenAITTSFailed ? 'OPENAI_TTS_FAILED' : 
-                 (errorDetail?.status === 'detected_unusual_activity' ? 'ELEVENLABS_AUTH_ERROR' : 'ELEVENLABS_API_ERROR');
+    error.code = errorDetail?.status === 'detected_unusual_activity' ? 'ELEVENLABS_AUTH_ERROR' : 'ELEVENLABS_API_ERROR';
     error.allTTSFailed = isAllTTSFailed;
-    error.openaiTTSFailed = isOpenAITTSFailed;
     error.fallback = errorJson?.fallback;
     
     // Chỉ log chi tiết nếu không phải là abuse detection (401)
@@ -112,12 +109,6 @@ export const textToSpeechElevenLabs = async (
       console.warn('[ElevenLabs] API Error (401 - Unusual activity detected, will fallback to browser TTS):', {
         status: response.status,
         code: error.code,
-      });
-    } else if (isOpenAITTSFailed) {
-      console.warn('[ElevenLabs] API Error (OpenAI TTS failed, using browser TTS):', {
-        status: response.status,
-        code: error.code,
-        fallback: error.fallback,
       });
     } else if (isAllTTSFailed) {
       console.warn('[ElevenLabs] API Error (Both TTS services failed, using browser TTS):', {

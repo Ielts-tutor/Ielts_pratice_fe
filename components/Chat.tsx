@@ -262,7 +262,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
   };
 
   // Handle start/stop recording for Live API
-  // Text-to-Speech: Đọc text response của AI sử dụng ElevenLabs, OpenAI, hoặc Browser TTS
+  // Text-to-Speech: Đọc text response của AI sử dụng ElevenLabs hoặc Browser TTS
   const handleSpeak = async (text: string) => {
     if (!text || typeof window === 'undefined') return;
     
@@ -291,19 +291,8 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
           };
           window.speechSynthesis.speak(utterance);
         });
-      } else if (selectedVoice.startsWith('openai:')) {
-        // Sử dụng OpenAI TTS trực tiếp
-        const openaiVoice = selectedVoice.replace('openai:', '');
-        await speakWithElevenLabs(text, {
-          voiceId: openaiVoice, // OpenAI voice name (shimmer, nova, etc.)
-          modelId: 'openai', // Flag để backend biết đây là OpenAI voice
-          stability: 0.5,
-          similarityBoost: 0.75,
-          style: 0.0,
-          useSpeakerBoost: true,
-        });
       } else {
-        // Sử dụng ElevenLabs API (với auto-fallback sang OpenAI)
+        // Sử dụng ElevenLabs API
         await speakWithElevenLabs(text, {
           voiceId: selectedVoice, // ElevenLabs voiceId
           modelId: 'eleven_multilingual_v2', // Model mới theo tài liệu chính thức
@@ -348,14 +337,10 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
         const isAbuseDetection = errorStatus === 401 || errorCode === 'ELEVENLABS_AUTH_ERROR' || 
                                  errorMessage?.includes('detected_unusual_activity');
         const isAllTTSFailed = errorCode === 'ALL_TTS_FAILED' || error?.allTTSFailed;
-        const isOpenAITTSFailed = errorCode === 'OPENAI_TTS_FAILED' || error?.openaiTTSFailed;
         
-        if (isOpenAITTSFailed) {
-          // OpenAI TTS fail (khi chọn OpenAI trực tiếp) - dùng browser TTS
-          console.warn('[Text-to-Speech] ⚠️ OpenAI TTS failed. Using browser TTS as fallback.');
-        } else if (isAllTTSFailed) {
-          // Cả ElevenLabs và OpenAI đều fail - dùng browser TTS
-          console.warn('[Text-to-Speech] ⚠️ Both ElevenLabs and OpenAI TTS failed. Using browser TTS as final fallback.');
+        if (isAllTTSFailed) {
+          // ElevenLabs fail - dùng browser TTS
+          console.warn('[Text-to-Speech] ⚠️ ElevenLabs TTS failed. Using browser TTS as fallback.');
         } else if (!isAbuseDetection) {
           console.error('[Text-to-Speech] ❌ ElevenLabs error, falling back to browser TTS:', {
             status: errorStatus,
@@ -1117,20 +1102,12 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
                   onChange={(e) => setSelectedVoice(e.target.value)}
                   className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all min-w-[200px]"
                   disabled={isSpeaking}
-                  title="Select voice: ElevenLabs, OpenAI, or Browser TTS"
+                  title="Select voice: ElevenLabs or Browser TTS"
                 >
-                  <optgroup label="ElevenLabs (Auto-fallback to OpenAI)">
+                  <optgroup label="ElevenLabs">
                     <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female - Natural)</option>
                     <option value="pNInz6obpgDQGcFmaJgB">Adam (Male - Deep)</option>
                     <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female - Energetic)</option>
-                  </optgroup>
-                  <optgroup label="OpenAI TTS (Direct)">
-                    <option value="openai:shimmer">Shimmer (Female - Natural, Clear)</option>
-                    <option value="openai:nova">Nova (Female - Energetic, Friendly)</option>
-                    <option value="openai:alloy">Alloy (Neutral - Balanced)</option>
-                    <option value="openai:echo">Echo (Male - Clear, Professional)</option>
-                    <option value="openai:fable">Fable (Expressive - Dramatic)</option>
-                    <option value="openai:onyx">Onyx (Male - Deep, Professional)</option>
                   </optgroup>
                   <optgroup label="Browser TTS (Default)">
                     <option value="browser">Browser TTS (System Default)</option>
