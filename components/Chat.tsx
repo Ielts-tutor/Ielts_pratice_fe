@@ -320,7 +320,9 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
           message: errorMessage,
         });
       } else {
-        console.warn('[Text-to-Speech] ⚠️ ElevenLabs API key issue (abuse detection). Using browser TTS as fallback.');
+        // ElevenLabs free tier bị disable - đây là vấn đề từ ElevenLabs API, không phải lỗi code
+        // App sẽ tự động fallback sang browser TTS (vẫn hoạt động bình thường)
+        console.warn('[Text-to-Speech] ⚠️ ElevenLabs free tier unavailable (unusual activity detected by ElevenLabs). Automatically using browser TTS - functionality continues normally.');
       }
       
       setIsSpeaking(false);
