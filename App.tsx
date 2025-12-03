@@ -345,6 +345,31 @@ const App: React.FC = () => {
             localStorage.removeItem('ielts_current_user');
           }
           setUser(loggedInUser);
+          
+          // Sync user info + dữ liệu từ localStorage lên MongoDB ngay khi login
+          const vocabKey = `ielts_vocab_${loggedInUser.id}`;
+          const notesKey = `ielts_notes_${loggedInUser.id}`;
+          const lessonKey = `ielts_lesson_notes_${loggedInUser.id}`;
+          
+          let vocab: any[] = [];
+          let globalNotes: { text: string; savedAt: number } | undefined;
+          let lessonNotes: any[] = [];
+          
+          try {
+            const vocabRaw = localStorage.getItem(vocabKey);
+            if (vocabRaw) vocab = JSON.parse(vocabRaw);
+          } catch {}
+          
+          try {
+            const notesRaw = localStorage.getItem(notesKey);
+            if (notesRaw) globalNotes = JSON.parse(notesRaw);
+          } catch {}
+          
+          try {
+            const lessonRaw = localStorage.getItem(lessonKey);
+            if (lessonRaw) lessonNotes = JSON.parse(lessonRaw);
+          } catch {}
+          
           syncUserSnapshot({
             user: {
               id: loggedInUser.id,
@@ -352,6 +377,9 @@ const App: React.FC = () => {
               joinedAt: loggedInUser.joinedAt,
               lastLoginAt: Date.now(),
             },
+            vocab: vocab.length > 0 ? vocab : undefined,
+            globalNotes,
+            lessonNotes: lessonNotes.length > 0 ? lessonNotes : undefined,
           });
         }}
         onAdminLogin={() => {

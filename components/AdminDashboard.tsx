@@ -153,7 +153,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </Button>
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                Chỉ hiển thị user đã từng đăng nhập trên trình duyệt này.
+                Tất cả user trên nền tảng.
               </Typography>
             </Box>
             <List dense disablePadding sx={{ maxHeight: '70vh', overflow: 'auto' }}>

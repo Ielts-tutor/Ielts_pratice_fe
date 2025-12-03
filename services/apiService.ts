@@ -7,11 +7,19 @@ const API_BASE_URL = import.meta.env.DEV
   ? 'http://localhost:3000'
   : ''; // Production (same domain)
 
-// Backend chuyên Speaking (Node trên Render chẳng hạn)
-// Ví dụ: VITE_SPEAKING_BACKEND_URL=https://ielts-speaking-backend.onrender.com
-const SPEAKING_BACKEND_URL =
-  import.meta.env.VITE_SPEAKING_BACKEND_URL ||
-  (import.meta.env.DEV ? 'http://localhost:4000' : API_BASE_URL);
+// Backend URL - lấy từ environment variable VITE_BACKEND_URL
+// Ví dụ: VITE_BACKEND_URL=http://localhost:4000 (dev) hoặc https://ielts-practice-be.onrender.com (production)
+const SPEAKING_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+if (!SPEAKING_BACKEND_URL) {
+  console.error('[apiService] ⚠️ VITE_BACKEND_URL is not set in environment variables');
+  throw new Error('VITE_BACKEND_URL environment variable is required');
+}
+
+// Log để debug
+if (import.meta.env.DEV) {
+  console.log('[apiService] Backend URL:', SPEAKING_BACKEND_URL);
+}
 
 /**
  * Analyzes a vocabulary word using serverless API with Redis cache
@@ -146,13 +154,20 @@ export const logChatActivity = async (
   timestamp: number,
 ) => {
   try {
-    await fetch(`${SPEAKING_BACKEND_URL}/api/chat-log`, {
+    const response = await fetch(`${SPEAKING_BACKEND_URL}/api/chat-log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, userMessage, modelReply, timestamp }),
     });
+    
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      console.warn(`[logChatActivity] HTTP ${response.status}:`, errorText);
+      return; // Fail silently - logging is not critical for app functionality
+    }
   } catch (err) {
-    console.warn('logChatActivity failed', err);
+    // Network errors or other issues - fail silently
+    console.warn('[logChatActivity] Request failed:', err instanceof Error ? err.message : 'Unknown error');
   }
 };
 

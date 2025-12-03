@@ -22,6 +22,66 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [mode, setMode] = useState<'text' | 'voice'>('text');
   const [hasVoiceWelcome, setHasVoiceWelcome] = useState(false);
+
+  // Hàm tạo lời chào dựa trên tên user và thời gian (giờ Việt Nam UTC+7)
+  const generateWelcomeMessage = (): string => {
+    // Lấy giờ Việt Nam (UTC+7) - sử dụng Intl để lấy đúng timezone
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: 'numeric',
+      hour12: false,
+    });
+    const vietnamHour = formatter.formatToParts(now).find(part => part.type === 'hour');
+    const hour = vietnamHour ? parseInt(vietnamHour.value, 10) : now.getHours();
+    const userName = user?.name?.trim() || '';
+    
+    // Xác định buổi trong ngày theo giờ Việt Nam
+    let timeGreeting = '';
+    if (hour >= 5 && hour < 12) {
+      timeGreeting = 'Good morning';
+    } else if (hour >= 12 && hour < 17) {
+      timeGreeting = 'Good afternoon';
+    } else if (hour >= 17 && hour < 21) {
+      timeGreeting = 'Good evening';
+    } else {
+      timeGreeting = 'Good evening'; // Late night (21h-5h)
+    }
+    
+    // Nhiều mẫu câu chào hỏi đa dạng và dài hơn
+    const greetings = [
+      // Với tên user
+      ...(userName ? [
+        `${timeGreeting}, ${userName}! I'm your IELTS Speaking Tutor, and I'm really excited to help you practice today. We can work on Part 1 questions, Part 2 long turn, or just have a general conversation to improve your fluency. What would you like to focus on today?`,
+        `${timeGreeting}, ${userName}! Welcome to your IELTS Speaking practice session. I'm here to help you improve your speaking skills, pronunciation, and confidence. Feel free to start speaking whenever you're ready. What topic interests you today?`,
+        `Hello ${userName}! ${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm here to support you on your journey to improve your English speaking skills. We can practice different parts of the IELTS Speaking test, or just have a natural conversation. What would you like to work on?`,
+        `${timeGreeting}, ${userName}! Great to see you again. I'm your IELTS Speaking Tutor, and I'm ready to help you practice. Whether you want to work on Part 1 introductions, Part 2 long turn, or Part 3 discussions, I'm here to guide you. What would you like to discuss today?`,
+        `Hi ${userName}! ${timeGreeting}! I'm your IELTS Speaking Tutor. Let's make today's practice session really productive and helpful for your IELTS preparation. You can practice speaking about various topics, and I'll help you with pronunciation, grammar, and fluency. What would you like to start with?`,
+        `${timeGreeting}, ${userName}! I'm your IELTS Speaking Tutor, and I'm here to support your speaking journey. Whether you're preparing for Part 1, Part 2, or Part 3, or just want to have a general conversation to build confidence, I'm ready to help. Feel free to start speaking. What would you like to practice?`,
+        `Hello ${userName}! ${timeGreeting}! Ready to practice your IELTS Speaking? I'm here to help you improve your fluency, pronunciation, and overall speaking skills. We can work on any part of the test or just have a natural conversation. What topic would you like to explore today?`,
+        `${timeGreeting}, ${userName}! Welcome back! I'm your IELTS Speaking Tutor. Let's practice together and make progress on your speaking skills. Whether you want to work on specific test parts or just improve your general conversation skills, I'm here to help. What would you like to talk about?`,
+        `Hi there, ${userName}! ${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm really looking forward to helping you practice today. We can focus on any aspect of the IELTS Speaking test that you'd like to improve. Feel free to start speaking whenever you're ready. What interests you?`,
+        `${timeGreeting}, ${userName}! I'm your IELTS Speaking Tutor, and I'm excited to work with you today. We can practice Part 1 questions about yourself, Part 2 long turn presentations, or Part 3 discussions on various topics. What would you like to begin with?`,
+      ] : []),
+      // Không có tên user
+      `${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm here to help you practice and improve your speaking skills. We can work on different parts of the IELTS Speaking test – Part 1 introductions, Part 2 long turn, or Part 3 discussions. What would you like to focus on today?`,
+      `${timeGreeting}! Welcome to your IELTS Speaking practice session. I'm really excited to help you today and support you in improving your English speaking abilities. Feel free to start speaking whenever you're ready. What topic interests you?`,
+      `Hello! ${timeGreeting}! I'm your IELTS Speaking Tutor. Let's make this practice session really productive and beneficial for your IELTS preparation. We can practice various speaking tasks, and I'll help you with pronunciation, grammar, and fluency. What would you like to practice today?`,
+      `${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm ready to help you improve your speaking skills. Whether you want to practice Part 1, Part 2, or Part 3, or just have a general conversation to build confidence, I'm here to guide you. You can start speaking now. What topic would you like to discuss?`,
+      `Hi there! ${timeGreeting}! I'm here to support your IELTS Speaking journey and help you become more confident in speaking English. We can work on any part of the test that you'd like to improve, or just have a natural conversation. Feel free to start speaking. What would you like to work on?`,
+      `${timeGreeting}! Great to have you here! I'm your IELTS Speaking Tutor. Let's practice together and make real progress on your speaking skills. Whether you're preparing for Part 1, Part 2, or Part 3, or just want to improve your general conversation, I'm ready to help. What would you like to talk about today?`,
+      `Hello! ${timeGreeting}! I'm your IELTS Speaking Tutor. Ready to practice? We can work on different aspects of the IELTS Speaking test, and I'll help you with pronunciation, vocabulary, and fluency. You can start speaking now. What interests you?`,
+      `${timeGreeting}! Welcome! I'm here to help you practice IELTS Speaking and improve your English communication skills. Whether you want to focus on specific test parts or just have a natural conversation, I'm ready to support you. Feel free to start whenever you're ready. What would you like to discuss?`,
+      `Hi! ${timeGreeting}! I'm your IELTS Speaking Tutor. Let's make today's session really productive and helpful for your IELTS preparation. We can practice Part 1 questions, Part 2 long turn, or Part 3 discussions. What would you like to practice – Part 1, Part 2, or general conversation?`,
+      `${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm really excited to help you today. We can work on any part of the IELTS Speaking test that you'd like to improve, and I'll provide feedback on your pronunciation, grammar, and fluency. You can start speaking now. What topic would you like to explore?`,
+      `Hello there! ${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm here to help you build confidence and improve your speaking skills. We can practice different speaking tasks, and I'll guide you through each one. What would you like to start with today?`,
+      `${timeGreeting}! I'm your IELTS Speaking Tutor, and I'm looking forward to helping you practice today. Whether you want to work on Part 1 introductions, Part 2 presentations, or Part 3 discussions, I'm here to support you. Feel free to start speaking. What interests you?`,
+    ];
+    
+    // Random chọn một mẫu câu
+    const randomIndex = Math.floor(Math.random() * greetings.length);
+    return greetings[randomIndex];
+  };
   // Sóng âm động cho user & AI
   const baseUserWave = [8, 14, 20, 14, 8, 16, 10];
   const baseAiWave = [10, 18, 24, 18, 10, 20, 12];
@@ -245,7 +305,24 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
         }
       }
     } catch (error: any) {
-      console.error('[Text-to-Speech] ❌ ElevenLabs error, falling back to browser TTS:', error);
+      const errorStatus = error?.status || 0;
+      const errorCode = error?.code || 'UNKNOWN';
+      const errorMessage = error?.message || String(error);
+      
+      // Log error với thông tin chi tiết
+      const isAbuseDetection = errorStatus === 401 || errorCode === 'ELEVENLABS_AUTH_ERROR' || 
+                               errorMessage?.includes('detected_unusual_activity');
+      
+      if (!isAbuseDetection) {
+        console.error('[Text-to-Speech] ❌ ElevenLabs error, falling back to browser TTS:', {
+          status: errorStatus,
+          code: errorCode,
+          message: errorMessage,
+        });
+      } else {
+        console.warn('[Text-to-Speech] ⚠️ ElevenLabs API key issue (abuse detection). Using browser TTS as fallback.');
+      }
+      
       setIsSpeaking(false);
       
       // Fallback to browser TTS nếu ElevenLabs fail
@@ -271,14 +348,16 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
           }
         };
         
-        utterance.onerror = () => {
-          console.error('[Text-to-Speech] ❌ Browser TTS error');
+        utterance.onerror = (err) => {
+          console.error('[Text-to-Speech] ❌ Browser TTS error:', err);
           setIsSpeaking(false);
         };
         
         window.speechSynthesis.speak(utterance);
       } else {
-        alert('Không thể phát âm thanh. Vui lòng kiểm tra kết nối mạng hoặc trình duyệt của bạn.');
+        // Chỉ hiển thị alert nếu cả ElevenLabs và browser TTS đều không hoạt động
+        console.error('[Text-to-Speech] ❌ No TTS available (neither ElevenLabs nor browser TTS)');
+        setIsSpeaking(false);
       }
     }
   };
@@ -392,7 +471,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
     
     if (stage === 0) {
       // Lần đầu vào Speaking mode - chào hỏi
-      question = "Hi, I'm your IELTS Speaking Tutor. You can start speaking now. What would you like to practice today – Part 1, Part 2, or general conversation?";
+      question = generateWelcomeMessage();
     } else if (stage === 1) {
       // Sau 10s không có speech - hỏi lần 1
       const questions = [
@@ -504,7 +583,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
     // Nếu cần chào hỏi (lần đầu bật), AI sẽ tự động chào
     if (shouldGreet && !hasVoiceWelcome) {
       setTimeout(() => {
-        const welcomeText = "Hi, I'm your IELTS Speaking Tutor. You can start speaking now. What would you like to practice today – Part 1, Part 2, or general conversation?";
+        const welcomeText = generateWelcomeMessage();
         setMessages((prev) => [
           ...prev,
           {
@@ -744,7 +823,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
 
     // Chào hỏi chỉ 1 lần khi chuyển sang voice mode
     if (!hasVoiceWelcome) {
-      const welcomeText = "Hi, I'm your IELTS Speaking Tutor. Click the record button to start speaking. What would you like to practice today – Part 1, Part 2, or general conversation?";
+      const welcomeText = generateWelcomeMessage();
       setMessages((prev) => [
         ...prev,
         {
