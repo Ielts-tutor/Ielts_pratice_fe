@@ -375,7 +375,8 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                                 </div>
                             </div>
 
-                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Nút xoá luôn hiển thị (trước đây chỉ hiện khi hover nên khó dùng trên mobile) */}
+                            <div className="absolute top-4 right-4">
                                 <button
                                     onClick={() => handleDelete(word.id)}
                                     className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"

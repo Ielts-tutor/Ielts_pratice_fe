@@ -14,11 +14,12 @@ interface StoredUser {
 
 const USERS_KEY = 'ielts_users_v1';
 
-const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
+const LoginView: React.FC<{ onLogin: (user: User, rememberMe: boolean) => void }> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [isExistingUser, setIsExistingUser] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   const loadUsers = (): Record<string, StoredUser> => {
     try {
@@ -69,8 +70,7 @@ const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => 
       const user = existing.user;
       users[id] = { ...existing, lastLoginAt: Date.now() };
       saveUsers(users);
-      localStorage.setItem('ielts_current_user', JSON.stringify(user));
-      onLogin(user);
+      onLogin(user, rememberMe);
     } else {
       // Đăng ký tài khoản mới
       const newUser: User = {
@@ -84,8 +84,7 @@ const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => 
         lastLoginAt: Date.now(),
       };
       saveUsers(users);
-      localStorage.setItem('ielts_current_user', JSON.stringify(newUser));
-      onLogin(newUser);
+      onLogin(newUser, rememberMe);
     }
   };
 
@@ -111,7 +110,8 @@ const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => 
     setError('');
   };
 
-  const canSubmit = name.trim() && password.trim();
+  const hasName = !!name.trim();
+  const canSubmit = hasName && password.trim();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -137,28 +137,41 @@ const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => 
               autoFocus
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Mật khẩu {isExistingUser ? '(tài khoản đã có)' : '(tạo mật khẩu mới)'}
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && canSubmit && handleSubmit()}
-              placeholder={isExistingUser ? 'Nhập mật khẩu để đăng nhập...' : 'Tạo mật khẩu để đăng ký...'}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-center text-lg text-slate-900 placeholder:text-slate-400 font-medium"
-            />
-            {isExistingUser && (
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Quên mật khẩu? Đặt lại bằng tên
-              </button>
-            )}
-          </div>
+          {hasName && (
+            <div className="space-y-2">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Mật khẩu {isExistingUser ? '(tài khoản đã có)' : '(tạo mật khẩu mới)'}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && canSubmit && handleSubmit()}
+                  placeholder={isExistingUser ? 'Nhập mật khẩu để đăng nhập...' : 'Tạo mật khẩu để đăng ký...'}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-center text-lg text-slate-900 placeholder:text-slate-400 font-medium"
+                />
+                {isExistingUser && (
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Quên mật khẩu? Đặt lại bằng tên
+                  </button>
+                )}
+              </div>
+              <label className="flex items-center justify-center gap-2 text-xs text-slate-500">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                Ghi nhớ tôi (tự đăng nhập nhanh lần sau)
+              </label>
+            </div>
+          )}
           {error && (
             <p className="text-sm text-red-500 text-center">{error}</p>
           )}
@@ -286,9 +299,13 @@ const App: React.FC = () => {
   if (!user) {
     return (
       <LoginView
-        onLogin={(loggedInUser) => {
-          // Đảm bảo lưu lại user hiện tại cho lần mở tiếp theo (auto login)
-          localStorage.setItem('ielts_current_user', JSON.stringify(loggedInUser));
+        onLogin={(loggedInUser, rememberMe) => {
+          // Nếu user chọn "Ghi nhớ tôi" thì lưu cho lần mở tiếp theo
+          if (rememberMe) {
+            localStorage.setItem('ielts_current_user', JSON.stringify(loggedInUser));
+          } else {
+            localStorage.removeItem('ielts_current_user');
+          }
           setUser(loggedInUser);
         }}
       />
