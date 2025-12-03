@@ -6,8 +6,112 @@ import Chat from './components/Chat';
 import { AppView, User } from './types';
 import { Menu, ArrowRight } from 'lucide-react';
 
-const LoginView: React.FC<{ onLogin: (name: string) => void }> = ({ onLogin }) => {
+interface StoredUser {
+  user: User;
+  password: string;
+  lastLoginAt: number;
+}
+
+const USERS_KEY = 'ielts_users_v1';
+
+const LoginView: React.FC<{ onLogin: (user: User) => void }> = ({ onLogin }) => {
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [isExistingUser, setIsExistingUser] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadUsers = (): Record<string, StoredUser> => {
+    try {
+      const raw = localStorage.getItem(USERS_KEY);
+      if (!raw) return {};
+      return JSON.parse(raw) as Record<string, StoredUser>;
+    } catch {
+      return {};
+    }
+  };
+
+  const saveUsers = (users: Record<string, StoredUser>) => {
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  };
+
+  const normalizedId = (input: string) =>
+    input.toLowerCase().trim().replace(/\s+/g, '_');
+
+  useEffect(() => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setIsExistingUser(false);
+      setError('');
+      return;
+    }
+    const users = loadUsers();
+    setIsExistingUser(!!users[normalizedId(trimmed)]);
+    setError('');
+  }, [name]);
+
+  const handleSubmit = () => {
+    const trimmedName = name.trim();
+    if (!trimmedName || !password.trim()) {
+      setError('Vui lòng nhập đầy đủ tên và mật khẩu');
+      return;
+    }
+
+    const id = normalizedId(trimmedName);
+    const users = loadUsers();
+    const existing = users[id];
+
+    if (existing) {
+      // Đăng nhập
+      if (existing.password !== password) {
+        setError('Mật khẩu không đúng. Vui lòng thử lại.');
+        return;
+      }
+      const user = existing.user;
+      users[id] = { ...existing, lastLoginAt: Date.now() };
+      saveUsers(users);
+      localStorage.setItem('ielts_current_user', JSON.stringify(user));
+      onLogin(user);
+    } else {
+      // Đăng ký tài khoản mới
+      const newUser: User = {
+        id,
+        name: trimmedName,
+        joinedAt: Date.now(),
+      };
+      users[id] = {
+        user: newUser,
+        password: password.trim(),
+        lastLoginAt: Date.now(),
+      };
+      saveUsers(users);
+      localStorage.setItem('ielts_current_user', JSON.stringify(newUser));
+      onLogin(newUser);
+    }
+  };
+
+  const handleResetPassword = () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Hãy nhập tên trước khi reset mật khẩu');
+      return;
+    }
+    const id = normalizedId(trimmedName);
+    const users = loadUsers();
+    const existing = users[id];
+    if (!existing) {
+      setError('Không tìm thấy tài khoản với tên này');
+      return;
+    }
+    const newPass = window.prompt(`Nhập mật khẩu mới cho "${trimmedName}":`);
+    if (!newPass) return;
+    users[id] = { ...existing, password: newPass };
+    saveUsers(users);
+    alert('Đã cập nhật mật khẩu mới.');
+    setPassword(newPass);
+    setError('');
+  };
+
+  const canSubmit = name.trim() && password.trim();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -27,15 +131,40 @@ const LoginView: React.FC<{ onLogin: (name: string) => void }> = ({ onLogin }) =
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && name.trim() && onLogin(name)}
+              onKeyDown={(e) => e.key === 'Enter' && canSubmit && handleSubmit()}
               placeholder="Nhập tên để bắt đầu..."
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-center text-lg text-slate-900 placeholder:text-slate-400 font-medium"
               autoFocus
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Mật khẩu {isExistingUser ? '(tài khoản đã có)' : '(tạo mật khẩu mới)'}
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && canSubmit && handleSubmit()}
+              placeholder={isExistingUser ? 'Nhập mật khẩu để đăng nhập...' : 'Tạo mật khẩu để đăng ký...'}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-center text-lg text-slate-900 placeholder:text-slate-400 font-medium"
+            />
+            {isExistingUser && (
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                className="mt-2 text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Quên mật khẩu? Đặt lại bằng tên
+              </button>
+            )}
+          </div>
+          {error && (
+            <p className="text-sm text-red-500 text-center">{error}</p>
+          )}
           <button
-            onClick={() => name.trim() && onLogin(name)}
-            disabled={!name.trim()}
+            onClick={handleSubmit}
+            disabled={!canSubmit}
             className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
           >
             Bắt Đầu Học <ArrowRight size={20} />
@@ -132,16 +261,6 @@ const App: React.FC = () => {
     setInitializing(false);
   }, []);
 
-  const handleLogin = (name: string) => {
-    const newUser: User = {
-      id: name.toLowerCase().replace(/\s+/g, '_'),
-      name: name,
-      joinedAt: Date.now()
-    };
-    localStorage.setItem('ielts_current_user', JSON.stringify(newUser));
-    setUser(newUser);
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('ielts_current_user');
     setUser(null);
@@ -165,7 +284,15 @@ const App: React.FC = () => {
   if (initializing) return null;
 
   if (!user) {
-    return <LoginView onLogin={handleLogin} />;
+    return (
+      <LoginView
+        onLogin={(loggedInUser) => {
+          // Đảm bảo lưu lại user hiện tại cho lần mở tiếp theo (auto login)
+          localStorage.setItem('ielts_current_user', JSON.stringify(loggedInUser));
+          setUser(loggedInUser);
+        }}
+      />
+    );
   }
 
   return (
