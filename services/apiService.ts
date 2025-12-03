@@ -9,17 +9,31 @@ const API_BASE_URL = import.meta.env.DEV
 
 // Backend URL - lấy từ environment variable VITE_BACKEND_URL
 // Ví dụ: VITE_BACKEND_URL=http://localhost:4000 (dev) hoặc https://ielts-practice-be.onrender.com (production)
-const SPEAKING_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+// Fallback: nếu không có, dùng backend URL mặc định
+const getBackendUrl = (): string => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  
+  // Nếu có env variable và không rỗng, dùng nó
+  if (envUrl && envUrl.trim().length > 0) {
+    return envUrl.trim();
+  }
+  
+  // Fallback dựa trên môi trường
+  if (import.meta.env.PROD) {
+    return 'https://ielts-practice-be.onrender.com';
+  }
+  
+  return 'http://localhost:4000';
+};
 
-if (!SPEAKING_BACKEND_URL) {
-  console.error('[apiService] ⚠️ VITE_BACKEND_URL is not set in environment variables');
-  throw new Error('VITE_BACKEND_URL environment variable is required');
-}
+const SPEAKING_BACKEND_URL = getBackendUrl();
 
-// Log để debug
-if (import.meta.env.DEV) {
-  console.log('[apiService] Backend URL:', SPEAKING_BACKEND_URL);
-}
+// Log để debug (cả dev và production)
+console.log('[apiService] Backend URL:', SPEAKING_BACKEND_URL, {
+  hasEnvVar: !!import.meta.env.VITE_BACKEND_URL,
+  envValue: import.meta.env.VITE_BACKEND_URL,
+  isProd: import.meta.env.PROD,
+});
 
 /**
  * Analyzes a vocabulary word using serverless API with Redis cache
