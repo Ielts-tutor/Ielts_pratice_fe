@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Plus, Trash2, Sparkles, Pencil } from 'lucide-react';
 import { User } from '../types';
-import { chatWithTutor } from '../services/apiService';
+import { chatWithTutor, syncUserSnapshot } from '../services/apiService';
 
 interface NotesProps {
   user: User;
@@ -103,6 +103,15 @@ const Notes: React.FC<NotesProps> = ({ user }) => {
   const persist = (data: LessonNote[]) => {
     setLessons(data);
     localStorage.setItem(storageKey, JSON.stringify(data));
+    // Đồng bộ lesson notes lên Mongo (nếu backend có)
+    syncUserSnapshot({
+      user: {
+        id: user.id,
+        name: user.name,
+        joinedAt: user.joinedAt,
+      },
+      lessonNotes: data,
+    });
   };
 
   const handleAddLesson = () => {

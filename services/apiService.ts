@@ -7,6 +7,12 @@ const API_BASE_URL = import.meta.env.DEV
   ? 'http://localhost:3000'
   : ''; // Production (same domain)
 
+// Backend chuyên Speaking (Node trên Render chẳng hạn)
+// Ví dụ: VITE_SPEAKING_BACKEND_URL=https://ielts-speaking-backend.onrender.com
+const SPEAKING_BACKEND_URL =
+  import.meta.env.VITE_SPEAKING_BACKEND_URL ||
+  (import.meta.env.DEV ? 'http://localhost:4000' : API_BASE_URL);
+
 /**
  * Analyzes a vocabulary word using serverless API with Redis cache
  */
@@ -85,4 +91,102 @@ export const chatWithTutor = async (history: {role: string, parts: {text: string
 
   const data = await response.json();
   return data.text;
+};
+
+/**
+ * Chat với Speaking Tutor (backend Node riêng, dùng cho chế độ voice)
+ */
+export const chatWithSpeakingTutor = async (history: {role: string, parts: {text: string}[]}[], message: string) => {
+  const response = await fetch(`${SPEAKING_BACKEND_URL}/api/speaking-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ history, message }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.text as string;
+};
+
+// --- User analytics & admin APIs (Mongo backend) ---
+
+interface BasicUserPayload {
+  id: string;
+  name: string;
+  joinedAt: number;
+  lastLoginAt?: number;
+}
+
+export const syncUserSnapshot = async (payload: {
+  user: BasicUserPayload;
+  vocab?: VocabItem[];
+  globalNotes?: { text: string; savedAt: number };
+  lessonNotes?: any[];
+}) => {
+  try {
+    await fetch(`${SPEAKING_BACKEND_URL}/api/user-sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('syncUserSnapshot failed', err);
+  }
+};
+
+export const logChatActivity = async (
+  userId: string,
+  userMessage: string,
+  modelReply: string,
+  timestamp: number,
+) => {
+  try {
+    await fetch(`${SPEAKING_BACKEND_URL}/api/chat-log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, userMessage, modelReply, timestamp }),
+    });
+  } catch (err) {
+    console.warn('logChatActivity failed', err);
+  }
+};
+
+export interface AdminUserSummary {
+  userId: string;
+  name: string;
+  joinedAt: number;
+  lastLoginAt?: number;
+  vocabCount: number;
+  lessonCount: number;
+  chatCount: number;
+}
+
+export interface AdminUserDetail {
+  userId: string;
+  name: string;
+  joinedAt: number;
+  lastLoginAt?: number;
+  vocab?: VocabItem[];
+  globalNotes?: { text: string; savedAt: number } | null;
+  lessonNotes?: any[];
+  chatHistory?: { role: string; text: string; timestamp: number }[];
+}
+
+export const fetchAdminUsers = async (): Promise<AdminUserSummary[]> => {
+  const res = await fetch(`${SPEAKING_BACKEND_URL}/api/admin/users`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as AdminUserSummary[];
+};
+
+export const fetchAdminUserDetail = async (
+  userId: string,
+): Promise<AdminUserDetail> => {
+  const res = await fetch(`${SPEAKING_BACKEND_URL}/api/admin/users/${userId}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as AdminUserDetail;
 };

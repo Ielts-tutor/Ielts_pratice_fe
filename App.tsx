@@ -6,6 +6,8 @@ import Chat from './components/Chat';
 import Notes from './components/Notes';
 import { AppView, User } from './types';
 import { Menu, ArrowRight } from 'lucide-react';
+import AdminDashboard from './components/AdminDashboard';
+import { syncUserSnapshot } from './services/apiService';
 
 interface StoredUser {
   user: User;
@@ -15,7 +17,12 @@ interface StoredUser {
 
 const USERS_KEY = 'ielts_users_v1';
 
-const LoginView: React.FC<{ onLogin: (user: User, rememberMe: boolean) => void }> = ({ onLogin }) => {
+interface LoginViewProps {
+  onLogin: (user: User, rememberMe: boolean) => void;
+  onAdminLogin: () => void;
+}
+
+const LoginView: React.FC<LoginViewProps> = ({ onLogin, onAdminLogin }) => {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [isExistingUser, setIsExistingUser] = useState(false);
@@ -61,6 +68,16 @@ const LoginView: React.FC<{ onLogin: (user: User, rememberMe: boolean) => void }
     const id = normalizedId(trimmedName);
     const users = loadUsers();
     const existing = users[id];
+
+    // Tài khoản admin đặc biệt: không lưu như học viên thường
+    if (id === 'admin') {
+      if (password.trim() !== '123123') {
+        setError('Mật khẩu admin không đúng.');
+        return;
+      }
+      onAdminLogin();
+      return;
+    }
 
     if (existing) {
       // Đăng nhập
@@ -186,7 +203,9 @@ const LoginView: React.FC<{ onLogin: (user: User, rememberMe: boolean) => void }
         </div>
         
         <p className="text-xs text-center text-slate-400">
-          Dữ liệu của bạn sẽ được lưu cục bộ trên trình duyệt này.
+          Dữ liệu của bạn sẽ được lưu cục bộ trên trình duyệt này. Dùng tài khoản
+          <span className="font-semibold"> admin / 123123 </span>
+          để mở trang quản trị.
         </p>
       </div>
     </div>
@@ -265,12 +284,17 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
 
   useEffect(() => {
     // Check for saved session
     const savedUser = localStorage.getItem('ielts_current_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
+    }
+    const adminFlag = localStorage.getItem('ielts_admin_auth');
+    if (adminFlag === 'true') {
+      setIsAdminAuthenticated(true);
     }
     setInitializing(false);
   }, []);
@@ -289,7 +313,7 @@ const App: React.FC = () => {
       case AppView.QUIZ:
         return <Quiz />;
       case AppView.CHAT:
-        return <Chat />;
+        return <Chat user={user} />;
       case AppView.NOTES:
         return <Notes user={user} />;
       default:
@@ -298,6 +322,17 @@ const App: React.FC = () => {
   };
 
   if (initializing) return null;
+
+  if (isAdminAuthenticated) {
+    return (
+      <AdminDashboard
+        onLogout={() => {
+          setIsAdminAuthenticated(false);
+          localStorage.removeItem('ielts_admin_auth');
+        }}
+      />
+    );
+  }
 
   if (!user) {
     return (
@@ -310,6 +345,18 @@ const App: React.FC = () => {
             localStorage.removeItem('ielts_current_user');
           }
           setUser(loggedInUser);
+          syncUserSnapshot({
+            user: {
+              id: loggedInUser.id,
+              name: loggedInUser.name,
+              joinedAt: loggedInUser.joinedAt,
+              lastLoginAt: Date.now(),
+            },
+          });
+        }}
+        onAdminLogin={() => {
+          setIsAdminAuthenticated(true);
+          localStorage.setItem('ielts_admin_auth', 'true');
         }}
       />
     );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Volume2, Trash2, Loader2, Sparkles, Layers, RefreshCw, ChevronLeft, ChevronRight, RotateCcw, CheckCircle2, Download, Upload } from 'lucide-react';
 import { VocabItem, User } from '../types';
-import { analyzeVocabulary, generateNewExample } from '../services/apiService';
+import { analyzeVocabulary, generateNewExample, syncUserSnapshot } from '../services/apiService';
 
 type Tab = 'LIBRARY' | 'REVIEW' | 'QUIZ' | 'NOTES';
 
@@ -84,6 +84,19 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
     const saveToLocal = (newWords: VocabItem[]) => {
         localStorage.setItem(storageKey, JSON.stringify(newWords));
         setWords(newWords);
+        // Sync snapshot lên Mongo (nếu backend được cấu hình)
+        const notesPayload = notesLastSaved
+            ? { text: notesText, savedAt: notesLastSaved }
+            : undefined;
+        syncUserSnapshot({
+            user: {
+                id: user.id,
+                name: user.name,
+                joinedAt: user.joinedAt,
+            },
+            vocab: newWords,
+            globalNotes: notesPayload,
+        });
     };
 
     const handleExportData = () => {
@@ -307,6 +320,16 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
         };
         localStorage.setItem(notesStorageKey, JSON.stringify(payload));
         setNotesLastSaved(payload.savedAt);
+        // Đồng bộ ghi chú chung lên Mongo
+        syncUserSnapshot({
+            user: {
+                id: user.id,
+                name: user.name,
+                joinedAt: user.joinedAt,
+            },
+            vocab: words,
+            globalNotes: payload,
+        });
     };
 
     const toggleFlip = () => setIsFlipped(!isFlipped);
