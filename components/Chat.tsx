@@ -104,6 +104,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
   const shouldKeepRecordingRef = useRef<boolean>(true); // Flag để biết có nên tiếp tục recording không
   const hasSpeechDetectedRef = useRef<boolean>(false); // Flag để biết đã có speech detected chưa
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<string>('21m00Tcm4TlvDq8ikWAM'); // Default: Rachel (ElevenLabs)
 
 
   const scrollToBottom = () => {
@@ -261,7 +262,7 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
   };
 
   // Handle start/stop recording for Live API
-  // Text-to-Speech: Đọc text response của AI sử dụng ElevenLabs
+  // Text-to-Speech: Đọc text response của AI sử dụng ElevenLabs, OpenAI, hoặc Browser TTS
   const handleSpeak = async (text: string) => {
     if (!text || typeof window === 'undefined') return;
     
@@ -271,15 +272,47 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
     setIsSpeaking(true);
     
     try {
-      // Sử dụng ElevenLabs API để tạo giọng nói tự nhiên
-      await speakWithElevenLabs(text, {
-        voiceId: '21m00Tcm4TlvDq8ikWAM', // Rachel - giọng nữ tự nhiên
-        modelId: 'eleven_multilingual_v2', // Model mới theo tài liệu chính thức
-        stability: 0.5,
-        similarityBoost: 0.75,
-        style: 0.0,
-        useSpeakerBoost: true,
-      });
+      // Kiểm tra loại voice đã chọn
+      if (selectedVoice === 'browser') {
+        // Sử dụng Browser TTS (giọng bình thường)
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'en-US';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        await new Promise<void>((resolve, reject) => {
+          utterance.onend = () => {
+            resolve();
+          };
+          utterance.onerror = (error) => {
+            console.error('[Browser TTS] Error:', error);
+            reject(error);
+          };
+          window.speechSynthesis.speak(utterance);
+        });
+      } else if (selectedVoice.startsWith('openai:')) {
+        // Sử dụng OpenAI TTS trực tiếp
+        const openaiVoice = selectedVoice.replace('openai:', '');
+        await speakWithElevenLabs(text, {
+          voiceId: openaiVoice, // OpenAI voice name (shimmer, nova, etc.)
+          modelId: 'openai', // Flag để backend biết đây là OpenAI voice
+          stability: 0.5,
+          similarityBoost: 0.75,
+          style: 0.0,
+          useSpeakerBoost: true,
+        });
+      } else {
+        // Sử dụng ElevenLabs API (với auto-fallback sang OpenAI)
+        await speakWithElevenLabs(text, {
+          voiceId: selectedVoice, // ElevenLabs voiceId
+          modelId: 'eleven_multilingual_v2', // Model mới theo tài liệu chính thức
+          stability: 0.5,
+          similarityBoost: 0.75,
+          style: 0.0,
+          useSpeakerBoost: true,
+        });
+      }
       
       setIsSpeaking(false);
       
@@ -309,27 +342,37 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
       const errorCode = error?.code || 'UNKNOWN';
       const errorMessage = error?.message || String(error);
       
-      // Log error với thông tin chi tiết
-      const isAbuseDetection = errorStatus === 401 || errorCode === 'ELEVENLABS_AUTH_ERROR' || 
-                               errorMessage?.includes('detected_unusual_activity');
-      
-      if (!isAbuseDetection) {
-        console.error('[Text-to-Speech] ❌ ElevenLabs error, falling back to browser TTS:', {
-          status: errorStatus,
-          code: errorCode,
-          message: errorMessage,
-        });
-      } else {
-        // ElevenLabs free tier bị disable - đây là vấn đề từ ElevenLabs API, không phải lỗi code
-        // App sẽ tự động fallback sang browser TTS (vẫn hoạt động bình thường)
-        console.warn('[Text-to-Speech] ⚠️ ElevenLabs free tier unavailable (unusual activity detected by ElevenLabs). Automatically using browser TTS - functionality continues normally.');
-      }
-      
-      setIsSpeaking(false);
-      
-      // Fallback to browser TTS nếu ElevenLabs fail
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+      // Chỉ fallback sang browser TTS nếu không phải đang dùng browser TTS
+      if (selectedVoice !== 'browser') {
+        // Log error với thông tin chi tiết
+        const isAbuseDetection = errorStatus === 401 || errorCode === 'ELEVENLABS_AUTH_ERROR' || 
+                                 errorMessage?.includes('detected_unusual_activity');
+        const isAllTTSFailed = errorCode === 'ALL_TTS_FAILED' || error?.allTTSFailed;
+        const isOpenAITTSFailed = errorCode === 'OPENAI_TTS_FAILED' || error?.openaiTTSFailed;
+        
+        if (isOpenAITTSFailed) {
+          // OpenAI TTS fail (khi chọn OpenAI trực tiếp) - dùng browser TTS
+          console.warn('[Text-to-Speech] ⚠️ OpenAI TTS failed. Using browser TTS as fallback.');
+        } else if (isAllTTSFailed) {
+          // Cả ElevenLabs và OpenAI đều fail - dùng browser TTS
+          console.warn('[Text-to-Speech] ⚠️ Both ElevenLabs and OpenAI TTS failed. Using browser TTS as final fallback.');
+        } else if (!isAbuseDetection) {
+          console.error('[Text-to-Speech] ❌ ElevenLabs error, falling back to browser TTS:', {
+            status: errorStatus,
+            code: errorCode,
+            message: errorMessage,
+          });
+        } else {
+          // ElevenLabs free tier bị disable - đây là vấn đề từ ElevenLabs API, không phải lỗi code
+          // App sẽ tự động fallback sang browser TTS (vẫn hoạt động bình thường)
+          console.warn('[Text-to-Speech] ⚠️ ElevenLabs free tier unavailable (unusual activity detected by ElevenLabs). Automatically using browser TTS - functionality continues normally.');
+        }
+        
+        setIsSpeaking(false);
+        
+        // Fallback to browser TTS nếu ElevenLabs fail
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
         await new Promise(resolve => setTimeout(resolve, 100));
         
         const utterance = new SpeechSynthesisUtterance(text);
@@ -355,10 +398,15 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
           setIsSpeaking(false);
         };
         
-        window.speechSynthesis.speak(utterance);
+          window.speechSynthesis.speak(utterance);
+        } else {
+          // Chỉ hiển thị alert nếu cả ElevenLabs và browser TTS đều không hoạt động
+          console.error('[Text-to-Speech] ❌ No TTS available (neither ElevenLabs nor browser TTS)');
+          setIsSpeaking(false);
+        }
       } else {
-        // Chỉ hiển thị alert nếu cả ElevenLabs và browser TTS đều không hoạt động
-        console.error('[Text-to-Speech] ❌ No TTS available (neither ElevenLabs nor browser TTS)');
+        // Nếu đang dùng browser TTS mà có lỗi, chỉ log và set isSpeaking = false
+        console.error('[Text-to-Speech] ❌ Browser TTS error:', error);
         setIsSpeaking(false);
       }
     }
@@ -1061,6 +1109,35 @@ const Chat: React.FC<ChatProps> = ({ user }) => {
           {/* Input Area ở dưới cùng */}
           <div className="px-4 pb-6 pt-4 border-t border-slate-200 bg-white">
             <div className="max-w-2xl mx-auto">
+              {/* Voice Selection Dropdown */}
+              <div className="mb-3 flex items-center gap-2 flex-wrap">
+                <label className="text-sm font-medium text-slate-600">Voice:</label>
+                <select
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all min-w-[200px]"
+                  disabled={isSpeaking}
+                  title="Select voice: ElevenLabs, OpenAI, or Browser TTS"
+                >
+                  <optgroup label="ElevenLabs (Auto-fallback to OpenAI)">
+                    <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female - Natural)</option>
+                    <option value="pNInz6obpgDQGcFmaJgB">Adam (Male - Deep)</option>
+                    <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female - Energetic)</option>
+                  </optgroup>
+                  <optgroup label="OpenAI TTS (Direct)">
+                    <option value="openai:shimmer">Shimmer (Female - Natural, Clear)</option>
+                    <option value="openai:nova">Nova (Female - Energetic, Friendly)</option>
+                    <option value="openai:alloy">Alloy (Neutral - Balanced)</option>
+                    <option value="openai:echo">Echo (Male - Clear, Professional)</option>
+                    <option value="openai:fable">Fable (Expressive - Dramatic)</option>
+                    <option value="openai:onyx">Onyx (Male - Deep, Professional)</option>
+                  </optgroup>
+                  <optgroup label="Browser TTS (Default)">
+                    <option value="browser">Browser TTS (System Default)</option>
+                  </optgroup>
+                </select>
+              </div>
+              
               <div className="flex gap-2 relative">
                 <textarea
                   value={input}

@@ -82,20 +82,29 @@ export const textToSpeechElevenLabs = async (
     const errorText = await response.text();
     let errorMessage = `HTTP ${response.status}`;
     let errorDetail: any = null;
+    let errorJson: any = null;
     
     try {
-      const errorJson = JSON.parse(errorText);
+      errorJson = JSON.parse(errorText);
       errorMessage = errorJson.error || errorJson.detail?.message || errorMessage;
-      errorDetail = errorJson.detail;
+      errorDetail = errorJson.detail || errorJson.details;
     } catch {
       errorMessage = errorText || errorMessage;
     }
+    
+    // Kiểm tra loại lỗi
+    const isAllTTSFailed = errorJson?.code === 'ALL_TTS_FAILED';
+    const isOpenAITTSFailed = errorJson?.code === 'OPENAI_TTS_FAILED';
     
     // Tạo error object với thông tin chi tiết
     const error = new Error(`ElevenLabs API error: Status code: ${response.status}\nBody: ${errorText}`) as any;
     error.status = response.status;
     error.details = errorDetail;
-    error.code = errorDetail?.status === 'detected_unusual_activity' ? 'ELEVENLABS_AUTH_ERROR' : 'ELEVENLABS_API_ERROR';
+    error.code = isOpenAITTSFailed ? 'OPENAI_TTS_FAILED' : 
+                 (errorDetail?.status === 'detected_unusual_activity' ? 'ELEVENLABS_AUTH_ERROR' : 'ELEVENLABS_API_ERROR');
+    error.allTTSFailed = isAllTTSFailed;
+    error.openaiTTSFailed = isOpenAITTSFailed;
+    error.fallback = errorJson?.fallback;
     
     // Chỉ log chi tiết nếu không phải là abuse detection (401)
     // Để giảm log spam cho các lỗi expected
@@ -103,6 +112,18 @@ export const textToSpeechElevenLabs = async (
       console.warn('[ElevenLabs] API Error (401 - Unusual activity detected, will fallback to browser TTS):', {
         status: response.status,
         code: error.code,
+      });
+    } else if (isOpenAITTSFailed) {
+      console.warn('[ElevenLabs] API Error (OpenAI TTS failed, using browser TTS):', {
+        status: response.status,
+        code: error.code,
+        fallback: error.fallback,
+      });
+    } else if (isAllTTSFailed) {
+      console.warn('[ElevenLabs] API Error (Both TTS services failed, using browser TTS):', {
+        status: response.status,
+        code: error.code,
+        fallback: error.fallback,
       });
     } else {
       console.error('[ElevenLabs] API Error:', {
@@ -201,26 +222,39 @@ export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
       isPlaying = true;
       
       // Đợi thêm một chút để đảm bảo buffer hoàn toàn sẵn sàng
-      playTimeout = setTimeout(() => {
-        audio.play().then(() => {
-          // Đảm bảo audio thực sự đang phát
+      // Tăng delay lên 200ms để tránh mất chữ khi đổi model/voice
+      playTimeout = setTimeout(async () => {
+        try {
+          await audio.play();
+          
+          // Đảm bảo audio thực sự đang phát và không bị pause
           if (audio.paused) {
-            audio.play().catch((err) => {
-              cleanup();
-              reject(err);
-            });
+            // Nếu vẫn bị pause, đợi thêm và thử lại
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await audio.play();
           }
-        }).catch((err) => {
+          
+          // Kiểm tra lại sau một khoảng thời gian ngắn
+          setTimeout(() => {
+            if (audio.paused && audio.readyState >= 3) {
+              console.warn('[ElevenLabs] Audio paused unexpectedly, attempting to resume...');
+              audio.play().catch(() => {
+                // Ignore errors on retry
+              });
+            }
+          }, 50);
+        } catch (err) {
           cleanup();
           reject(err);
-        });
-      }, 150); // Tăng delay lên 150ms để đảm bảo buffer đầy đủ
+        }
+      }, 200);
     };
     
     // Đợi audio sẵn sàng (canplaythrough) trước khi phát - đây là event tốt nhất
     const handleCanPlayThrough = () => {
       if (!isPlaying) {
         // Đợi thêm một chút để buffer hoàn toàn sẵn sàng
+        // Tăng delay lên 200ms để tránh mất chữ khi đổi model/voice
         playTimeout = setTimeout(() => {
           if (!isPlaying) {
             // Remove event listeners trước khi play
@@ -230,7 +264,7 @@ export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
             audio.removeEventListener('progress', handleProgress);
             startPlayback();
           }
-        }, 150);
+        }, 200);
       }
     };
     
@@ -246,7 +280,7 @@ export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
             audio.removeEventListener('progress', handleProgress);
             startPlayback();
           }
-        }, 200);
+        }, 250); // Tăng delay để đảm bảo buffer đủ
       }
     };
     
@@ -262,7 +296,7 @@ export const playAudioBlob = (audioBlob: Blob): Promise<void> => {
             audio.removeEventListener('progress', handleProgress);
             startPlayback();
           }
-        }, 250); // Tăng delay cho loadeddata
+        }, 300); // Tăng delay cho loadeddata để tránh mất chữ
       }
     };
     
