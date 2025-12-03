@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, RefreshCcw } from 'lucide-react';
-import { chatWithTutor } from '../services/geminiService';
+import { chatWithTutor } from '../services/apiService';
 import { ChatMessage } from '../types';
 
 const Chat: React.FC = () => {
@@ -41,10 +41,14 @@ const Chat: React.FC = () => {
     try {
       // Convert current messages to history format for the service
       // We limit history to last 10 turns to save tokens context
-      const history = messages.slice(-10).map(m => ({
-        role: m.role,
-        parts: [{ text: m.text }]
-      }));
+      // Filter out the welcome message and ensure history starts with user turn
+      const history = messages
+        .filter(m => m.id !== 'welcome') // Remove welcome message
+        .slice(-10)
+        .map(m => ({
+          role: m.role,
+          parts: [{ text: m.text }]
+        }));
 
       const responseText = await chatWithTutor(history, userMsg.text);
 
@@ -84,7 +88,7 @@ const Chat: React.FC = () => {
             </p>
           </div>
         </div>
-        <button 
+        <button
           onClick={() => setMessages([messages[0]])}
           className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-200 transition-colors"
           title="Reset Chat"
@@ -98,33 +102,32 @@ const Chat: React.FC = () => {
         {messages.map((msg) => (
           <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.role === 'model' && (
-               <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex-shrink-0 flex items-center justify-center mt-1">
-                 <Bot size={16} />
-               </div>
+              <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex-shrink-0 flex items-center justify-center mt-1">
+                <Bot size={16} />
+              </div>
             )}
-            
-            <div 
-              className={`max-w-[80%] p-4 rounded-2xl shadow-sm leading-relaxed whitespace-pre-wrap ${
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white rounded-tr-none' 
+
+            <div
+              className={`max-w-[80%] p-4 rounded-2xl shadow-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-tr-none'
                   : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
-              }`}
+                }`}
             >
               {msg.text}
             </div>
 
             {msg.role === 'user' && (
-               <div className="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex-shrink-0 flex items-center justify-center mt-1">
-                 <User size={16} />
-               </div>
+              <div className="w-8 h-8 bg-slate-200 text-slate-600 rounded-full flex-shrink-0 flex items-center justify-center mt-1">
+                <User size={16} />
+              </div>
             )}
           </div>
         ))}
         {isTyping && (
           <div className="flex gap-3">
-             <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-                 <Bot size={16} />
-               </div>
+            <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+              <Bot size={16} />
+            </div>
             <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-slate-100 shadow-sm flex gap-1">
               <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></span>
               <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce delay-75"></span>

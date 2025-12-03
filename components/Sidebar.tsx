@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, GraduationCap, MessageSquare, LayoutDashboard, Menu, X, LogOut, User as UserIcon } from 'lucide-react';
+import { BookOpen, GraduationCap, MessageSquare, LayoutDashboard, X, LogOut, User as UserIcon } from 'lucide-react';
 import { AppView, User } from '../types';
 
 interface SidebarProps {
