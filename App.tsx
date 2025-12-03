@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Vocabulary from './components/Vocabulary';
 import Quiz from './components/Quiz';
 import Chat from './components/Chat';
+import Notes from './components/Notes';
 import { AppView, User } from './types';
 import { Menu, ArrowRight } from 'lucide-react';
 
@@ -289,6 +290,8 @@ const App: React.FC = () => {
         return <Quiz />;
       case AppView.CHAT:
         return <Chat />;
+      case AppView.NOTES:
+        return <Notes user={user} />;
       default:
         return <Dashboard onNavigate={setCurrentView} user={user} />;
     }

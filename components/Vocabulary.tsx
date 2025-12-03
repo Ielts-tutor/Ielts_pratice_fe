@@ -3,7 +3,7 @@ import { Search, Volume2, Trash2, Loader2, Sparkles, Layers, RefreshCw, ChevronL
 import { VocabItem, User } from '../types';
 import { analyzeVocabulary, generateNewExample } from '../services/apiService';
 
-type Tab = 'LIBRARY' | 'REVIEW';
+type Tab = 'LIBRARY' | 'REVIEW' | 'QUIZ' | 'NOTES';
 
 interface VocabularyProps {
     user: User;
@@ -21,6 +21,29 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
     const [activeTab, setActiveTab] = useState<Tab>('LIBRARY');
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
+
+    // Notes panel state
+    const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+    const [noteDraft, setNoteDraft] = useState('');
+
+    // Quiz state based on current vocab
+    interface VocabQuizQuestion {
+        id: string;
+        word: string;
+        definition: string;
+        options: string[];
+        correctIndex: number;
+    }
+    const [quizQuestions, setQuizQuestions] = useState<VocabQuizQuestion[]>([]);
+    const [quizIndex, setQuizIndex] = useState(0);
+    const [quizSelected, setQuizSelected] = useState<number | null>(null);
+    const [quizScore, setQuizScore] = useState(0);
+    const [quizFinished, setQuizFinished] = useState(false);
+
+    // Global study notes per user
+    const notesStorageKey = `ielts_notes_${user.id}`;
+    const [notesText, setNotesText] = useState('');
+    const [notesLastSaved, setNotesLastSaved] = useState<number | null>(null);
 
     // File input ref for import
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +65,21 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
         // Reset tabs when user changes
         setActiveTab('LIBRARY');
         setCurrentCardIndex(0);
-    }, [user.id, storageKey]);
+        const savedNotes = localStorage.getItem(notesStorageKey);
+        if (savedNotes) {
+            try {
+                const parsed = JSON.parse(savedNotes) as { text: string; savedAt: number };
+                setNotesText(parsed.text || '');
+                setNotesLastSaved(parsed.savedAt || null);
+            } catch {
+                setNotesText('');
+                setNotesLastSaved(null);
+            }
+        } else {
+            setNotesText('');
+            setNotesLastSaved(null);
+        }
+    }, [user.id, storageKey, notesStorageKey]);
 
     const saveToLocal = (newWords: VocabItem[]) => {
         localStorage.setItem(storageKey, JSON.stringify(newWords));
@@ -205,6 +242,73 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
         }
     };
 
+    const handleOpenNote = (id: string) => {
+        const target = words.find(w => w.id === id);
+        setSelectedNoteId(id);
+        setNoteDraft(target?.note || '');
+    };
+
+    const handleSaveNote = () => {
+        if (!selectedNoteId) return;
+        const updated = words.map(w =>
+            w.id === selectedNoteId ? { ...w, note: noteDraft.trim() || undefined } : w
+        );
+        saveToLocal(updated);
+    };
+
+    const startQuizFromVocab = () => {
+        if (words.length < 4) {
+            alert('Cần ít nhất 4 từ trong kho để tạo quiz.');
+            return;
+        }
+        const shuffled = [...words].sort(() => Math.random() - 0.5);
+        const base = shuffled.slice(0, Math.min(10, shuffled.length));
+        const questions: VocabQuizQuestion[] = base.map(baseWord => {
+            const others = words.filter(w => w.id !== baseWord.id);
+            const optionWords = [baseWord, ...others.sort(() => Math.random() - 0.5).slice(0, 3)]
+                .sort(() => Math.random() - 0.5);
+            const correctIndex = optionWords.findIndex(w => w.id === baseWord.id);
+            return {
+                id: baseWord.id,
+                word: baseWord.word,
+                definition: baseWord.meaning_en,
+                options: optionWords.map(w => w.word),
+                correctIndex: correctIndex === -1 ? 0 : correctIndex
+            };
+        });
+        setQuizQuestions(questions);
+        setQuizIndex(0);
+        setQuizSelected(null);
+        setQuizScore(0);
+        setQuizFinished(false);
+    };
+
+    const handleSelectQuizOption = (idx: number) => {
+        if (quizFinished || quizSelected !== null) return;
+        setQuizSelected(idx);
+        if (quizQuestions[quizIndex]?.correctIndex === idx) {
+            setQuizScore(prev => prev + 1);
+        }
+    };
+
+    const goToNextQuizQuestion = () => {
+        if (quizIndex + 1 >= quizQuestions.length) {
+            setQuizFinished(true);
+            return;
+        }
+        setQuizIndex(prev => prev + 1);
+        setQuizSelected(null);
+    };
+
+    const handleSaveNotes = () => {
+        const payload = {
+            text: notesText,
+            savedAt: Date.now(),
+        };
+        localStorage.setItem(notesStorageKey, JSON.stringify(payload));
+        setNotesLastSaved(payload.savedAt);
+    };
+
     const toggleFlip = () => setIsFlipped(!isFlipped);
 
     const nextCard = () => {
@@ -248,7 +352,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                                 <span className="text-sm">Xử lý...</span>
                             </>
                         ) : (
-                            <><Sparkles size={18} /> Tra cứu cho tôi</>
+                            <><Sparkles size={18} /> Tra cứu</>
                         )}
                     </button>
                 </div>
@@ -381,6 +485,46 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                                 >
                                     <Trash2 size={18} />
                                 </button>
+                            </div>
+
+                            {/* Ghi chú nhanh cho từ vựng */}
+                            <div className="mt-4 border-t border-slate-100 pt-3">
+                                <button
+                                    onClick={() => handleOpenNote(word.id)}
+                                    className="text-xs text-slate-500 hover:text-blue-600 font-medium"
+                                >
+                                    {word.note ? '✏️ Sửa ghi chú' : '➕ Thêm ghi chú cho từ này'}
+                                </button>
+                                {selectedNoteId === word.id && (
+                                    <div className="mt-2 space-y-2">
+                                        <textarea
+                                            value={noteDraft}
+                                            onChange={(e) => setNoteDraft(e.target.value)}
+                                            rows={3}
+                                            placeholder="Ví dụ: câu chuyện, mẹo nhớ, tình huống thực tế..."
+                                            className="w-full text-sm rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                        <div className="flex justify-between items-center text-xs text-slate-400">
+                                            <span>{noteDraft.trim().length || (word.note?.length || 0)} ký tự</span>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleSaveNote}
+                                                    className="px-3 py-1 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+                                                >
+                                                    Lưu ghi chú
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedNoteId(null)}
+                                                    className="px-3 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                                >
+                                                    Đóng
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ))
@@ -521,6 +665,154 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
         );
     };
 
+    const renderQuizFromVocab = () => {
+        if (words.length === 0) {
+            return (
+                <div className="text-center py-20 bg-white rounded-3xl border border-slate-200">
+                    <Layers size={64} className="mx-auto mb-4 text-slate-300" />
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Chưa có từ vựng</h3>
+                    <p className="text-slate-500 mb-6">Hãy tra cứu vài từ trước khi luyện quiz.</p>
+                    <button
+                        onClick={() => setActiveTab('LIBRARY')}
+                        className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+                    >
+                        Quay lại kho từ
+                    </button>
+                </div>
+            );
+        }
+
+        if (quizQuestions.length === 0) {
+            return (
+                <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-6">
+                    <h3 className="text-2xl font-bold text-slate-800 mb-2">Quiz từ kho từ vựng của bạn</h3>
+                    <p className="text-slate-500">
+                        Hệ thống sẽ tạo tối đa 10 câu hỏi trắc nghiệm, mỗi câu yêu cầu bạn chọn đúng từ dựa trên định nghĩa tiếng Anh.
+                    </p>
+                    <button
+                        onClick={startQuizFromVocab}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                        Bắt đầu Quiz
+                    </button>
+                </div>
+            );
+        }
+
+        const current = quizQuestions[quizIndex];
+        const total = quizQuestions.length;
+
+        return (
+            <div className="max-w-2xl mx-auto space-y-6 bg-white rounded-3xl border border-slate-200 p-6">
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                    <span>Câu {quizIndex + 1} / {total}</span>
+                    <span>Điểm: {quizScore}/{total}</span>
+                </div>
+
+                <div className="space-y-3">
+                    <p className="text-xs font-semibold text-blue-600 uppercase">Định nghĩa</p>
+                    <p className="text-lg font-medium text-slate-800">{current.definition}</p>
+                </div>
+
+                <div className="space-y-3">
+                    {current.options.map((opt, idx) => {
+                        const isCorrect = idx === current.correctIndex;
+                        const isSelected = idx === quizSelected;
+                        let className = 'w-full text-left px-4 py-3 rounded-xl border transition-colors';
+                        if (quizSelected === null) {
+                            className += ' border-slate-200 hover:border-blue-400 hover:bg-blue-50';
+                        } else if (isCorrect) {
+                            className += ' border-green-500 bg-green-50 text-green-700';
+                        } else if (isSelected && !isCorrect) {
+                            className += ' border-red-500 bg-red-50 text-red-700';
+                        } else {
+                            className += ' border-slate-200 text-slate-600';
+                        }
+                        return (
+                            <button
+                                key={idx}
+                                type="button"
+                                disabled={quizSelected !== null}
+                                onClick={() => handleSelectQuizOption(idx)}
+                                className={className}
+                            >
+                                {String.fromCharCode(65 + idx)}. {opt}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                    <button
+                        type="button"
+                        onClick={startQuizFromVocab}
+                        className="text-xs text-slate-500 hover:text-blue-600"
+                    >
+                        Làm lại bộ quiz khác
+                    </button>
+                    {!quizFinished ? (
+                        <button
+                            type="button"
+                            disabled={quizSelected === null}
+                            onClick={goToNextQuizQuestion}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {quizIndex + 1 === total ? 'Xem kết quả' : 'Câu tiếp theo'}
+                        </button>
+                    ) : (
+                        <span className="text-sm font-medium text-green-600">
+                            Hoàn thành! Bạn đúng {quizScore}/{total} câu.
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderNotes = () => {
+        return (
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-1">Ghi chú học tập</h3>
+                        <p className="text-slate-500 text-sm">
+                            Viết lại cấu trúc, ý tưởng speaking, mistakes hay gặp, hoặc kế hoạch học cho riêng bạn.
+                        </p>
+                    </div>
+                    <div className="text-xs text-slate-400 text-right">
+                        {notesLastSaved
+                            ? `Đã lưu gần nhất: ${new Date(notesLastSaved).toLocaleString()}`
+                            : 'Chưa có ghi chú nào được lưu'}
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <textarea
+                        value={notesText}
+                        onChange={(e) => setNotesText(e.target.value)}
+                        rows={10}
+                        placeholder="Ví dụ:
+- Những lỗi ngữ pháp mình hay mắc
+- Từ/cụm hay cho Writing Task 2 hôm nay
+- Ý tưởng Speaking Part 2: describe a time when...
+..."
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed focus:ring-2 focus:ring-blue-500 outline-none resize-vertical"
+                    />
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span>{notesText.trim().length} ký tự</span>
+                        <button
+                            type="button"
+                            onClick={handleSaveNotes}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+                        >
+                            Lưu ghi chú
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -573,10 +865,34 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                         >
                             Ôn Tập
                         </button>
+                        <button
+                            onClick={() => setActiveTab('QUIZ')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'QUIZ'
+                                ? 'bg-blue-100 text-blue-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            Quiz Từ Vựng
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('NOTES')}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'NOTES'
+                                ? 'bg-blue-100 text-blue-700 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            Ghi Chú
+                        </button>
                     </div>
                 </div>
             </div>
-            {activeTab === 'LIBRARY' ? renderLibrary() : renderReview()}
+            {activeTab === 'LIBRARY'
+                ? renderLibrary()
+                : activeTab === 'REVIEW'
+                    ? renderReview()
+                    : activeTab === 'QUIZ'
+                        ? renderQuizFromVocab()
+                        : renderNotes()}
         </div>
     );
 };

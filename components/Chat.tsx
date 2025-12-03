@@ -15,6 +15,7 @@ const Chat: React.FC = () => {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -141,18 +142,26 @@ const Chat: React.FC = () => {
       {/* Input Area */}
       <div className="p-4 bg-white border-t border-slate-100">
         <div className="flex gap-2 relative">
-          <input
-            type="text"
+          <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Hỏi về Writing, Speaking, hoặc ngữ pháp..."
-            className="flex-1 pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+              // Ctrl+Enter hoặc Shift+Enter sẽ xuống dòng bình thường
+            }}
+            placeholder="Hỏi về Writing, Speaking, hoặc ngữ pháp... (Ctrl+Enter để xuống dòng)"
+            rows={2}
+            className="flex-1 pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none leading-relaxed"
+            style={{ maxHeight: '160px' }}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            className="absolute right-2 top-1.5 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors"
+            className="absolute right-2 bottom-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 transition-colors"
           >
             <Send size={20} />
           </button>

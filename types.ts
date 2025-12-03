@@ -12,7 +12,8 @@ export enum AppView {
   DASHBOARD = 'DASHBOARD',
   VOCABULARY = 'VOCABULARY',
   QUIZ = 'QUIZ',
-  CHAT = 'CHAT'
+  CHAT = 'CHAT',
+  NOTES = 'NOTES',
 }
 
 export interface User {
@@ -35,6 +36,8 @@ export interface VocabItem {
   antonyms?: string[];
   createdAt: number;
   mastered?: boolean;
+  // Optional personal note for this word, stored per user in localStorage
+  note?: string;
 }
 
 export interface QuizQuestion {

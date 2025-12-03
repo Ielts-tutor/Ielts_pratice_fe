@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, GraduationCap, MessageSquare, LayoutDashboard, X, LogOut, User as UserIcon } from 'lucide-react';
+import { BookOpen, GraduationCap, MessageSquare, LayoutDashboard, X, LogOut, User as UserIcon, NotebookTabs } from 'lucide-react';
 import { AppView, User } from '../types';
 
 interface SidebarProps {
@@ -17,6 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, isOpen, to
     { id: AppView.VOCABULARY, label: 'Từ Vựng IELTS', icon: <BookOpen size={20} /> },
     { id: AppView.QUIZ, label: 'Luyện Tập Quiz', icon: <GraduationCap size={20} /> },
     { id: AppView.CHAT, label: 'AI Tutor', icon: <MessageSquare size={20} /> },
+    { id: AppView.NOTES, label: 'Sổ Ghi Chú', icon: <NotebookTabs size={20} /> },
   ];
 
   return (
