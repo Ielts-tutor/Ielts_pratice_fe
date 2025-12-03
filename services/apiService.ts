@@ -63,7 +63,7 @@ export const generateNewExample = async (word: string): Promise<string> => {
 export const generateQuiz = async (topic: string): Promise<QuizQuestion[]> => {
   // For now, return empty array or implement client-side
   // You can create /api/generate-quiz.ts later if needed
-  console.warn('Quiz generation not yet implemented via API');
+  console.warn('Quiz generation not yet implemented via API for topic:', topic);
   return [];
 };
 
