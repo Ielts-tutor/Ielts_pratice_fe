@@ -118,12 +118,13 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
             return;
         }
 
-        setProgress(`Đang xử lý ${rawInputs.length} từ song song...`);
+        // Thông báo trạng thái "đang tìm kiếm" cho toàn bộ batch
+        setProgress(`Đang tìm kiếm ${rawInputs.length} từ...`);
 
         // Process all words in parallel using Promise.allSettled
         const promises = rawInputs.map(async (wordToAnalyze, index) => {
             try {
-                setProgress(`Đang phân tích: ${rawInputs.map((_, i) => i <= index ? '✓' : '○').join(' ')} (${index + 1}/${rawInputs.length})`);
+                setProgress(`Đang tìm kiếm: ${rawInputs.map((_, i) => i <= index ? '✓' : '○').join(' ')} (${index + 1}/${rawInputs.length})`);
                 const analysis = await analyzeVocabulary(wordToAnalyze);
                 return {
                     success: true,
@@ -247,7 +248,7 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                                 <span className="text-sm">Xử lý...</span>
                             </>
                         ) : (
-                            <><Sparkles size={18} /> Phân Tích AI</>
+                            <><Sparkles size={18} /> Tra cứu cho tôi</>
                         )}
                     </button>
                 </div>
@@ -266,10 +267,6 @@ const Vocabulary: React.FC<VocabularyProps> = ({ user }) => {
                                 style={{ width: '100%' }}>
                             </div>
                         </div>
-
-                        <p className="text-xs text-blue-600">
-                            💡 Tip: Các từ đang được xử lý song song để tăng tốc độ
-                        </p>
                     </div>
                 )}
 
