@@ -1,3 +1,13 @@
+// Declare process to satisfy TS when accessing process.env.API_KEY
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      API_KEY: string;
+      NODE_ENV: string;
+    }
+  }
+}
+
 export enum AppView {
   DASHBOARD = 'DASHBOARD',
   VOCABULARY = 'VOCABULARY',
